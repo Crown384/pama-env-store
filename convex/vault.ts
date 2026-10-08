@@ -2,7 +2,7 @@ import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { sha256, equalsSecret, encrypt, decrypt, token } from "./crypto";
-import type { Id } from "./_generated/dataModel";
+import type { Id, Doc } from "./_generated/dataModel";
 
 type Scope = "shared" | "staging" | "production";
 type Env = "staging" | "production";
@@ -17,10 +17,6 @@ function requireScope(value: unknown): Scope {
   if (value !== "shared" && value !== "staging" && value !== "production") throw new Error("Invalid scope");
   return value;
 }
-function cleanDashboard(data: Awaited<ReturnType<typeof import("./_generated/server").internalQuery>>): never {
-  throw new Error("Unused");
-}
-
 // Login never writes the plaintext password to Convex storage or logs.
 export const login = action({
   args: { password: v.string(), identity: v.string() },
@@ -48,9 +44,9 @@ export const logout = action({
 // This is the sole public admin gateway. Every operation authenticates before reading or writing.
 export const admin = action({
   args: { token: v.string(), op: v.string(), data: v.optional(v.any()) },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<unknown> => {
     const tokenHash = await sha256(args.token);
-    const snapshot = await ctx.runQuery(internal.store.readAdmin, { tokenHash });
+    const snapshot: { projects: Doc<"projects">[]; variables: Doc<"variables">[]; clients: Doc<"machineClients">[]; audits: Doc<"auditEvents">[]; expiresAt: number } = await ctx.runQuery(internal.store.readAdmin, { tokenHash });
     const data = args.data ?? {};
     if (args.op === "snapshot") {
       return {
@@ -111,11 +107,11 @@ export const admin = action({
 // Authorizations are checked inside a Convex internal query before data is returned.
 export const machine = action({
   args: { token: v.string(), slug: v.optional(v.string()), environment: v.optional(v.string()), key: v.optional(v.string()) },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<unknown> => {
     const tokenHash = await sha256(args.token);
     const environment = args.environment === undefined ? undefined : requireEnv(args.environment);
     if (args.key !== undefined && (!environment || !validKey(args.key))) throw new Error("Invalid key request");
-    const result = await ctx.runQuery(internal.store.readMachine, { tokenHash, slug: args.slug, environment });
+    const result: { projects: Array<{ name: string; slug: string; environments: Env[] }>; project: { name: string; slug: string; environments: Env[] } | null; variables: Doc<"variables">[] } = await ctx.runQuery(internal.store.readMachine, { tokenHash, slug: args.slug, environment });
     if (!args.slug) return { projects: result.projects };
     if (!environment) return { project: result.project };
     const resolved = new Map<string, string>();

@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Activity, AlertCircle, AlertTriangle, ArrowDownToLine, ArrowLeft, ArrowRight, Check, CheckCircle2,
-  ChevronDown, ChevronRight, CircleHelp, ClipboardCopy, Copy, Database, Eye, EyeOff, FileCode2,
-  FolderClosed, KeyRound, Layers3, LockKeyhole, LogOut, Menu, MoreHorizontal, Plus, RefreshCw,
-  Search, Settings2, Shield, ShieldAlert, ShieldCheck, Terminal, Trash2, Upload, X,
+  Activity, AlertCircle, AlertTriangle, ArrowDownToLine, ArrowRight, Check, CheckCircle2,
+  ChevronRight, ClipboardCopy, Copy, Database, Eye, EyeOff, FileCode2,
+  FolderClosed, KeyRound, Layers3, LockKeyhole, LogOut, Menu, Plus, RefreshCw,
+  Search, Settings2, ShieldAlert, ShieldCheck, Terminal, Trash2, Upload, X,
 } from "lucide-react";
 import { downloadEnv, parseDotenv } from "@/lib/dotenv";
 

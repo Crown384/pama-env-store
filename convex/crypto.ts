@@ -32,17 +32,17 @@ async function encryptionKey(): Promise<CryptoKey> {
   if (!encoded) throw new Error("Encryption is not configured");
   const bytes = unbase64(encoded);
   if (bytes.length !== 32) throw new Error("Encryption key must be 32 bytes");
-  return crypto.subtle.importKey("raw", bytes, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  return crypto.subtle.importKey("raw", new Uint8Array(bytes), { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
 
 export async function encrypt(plaintext: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const result = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await encryptionKey(), encoder.encode(plaintext));
+  const result = await crypto.subtle.encrypt({ name: "AES-GCM", iv: new Uint8Array(iv) }, await encryptionKey(), encoder.encode(plaintext));
   return "v1:" + base64(iv) + ":" + base64(new Uint8Array(result));
 }
 
 export async function decrypt(value: string): Promise<string> {
   const [version, iv, ciphertext] = value.split(":");
   if (version !== "v1" || !iv || !ciphertext) throw new Error("Unsupported encrypted data");
-  return decoder.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unbase64(iv) }, await encryptionKey(), unbase64(ciphertext)));
+  return decoder.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: new Uint8Array(unbase64(iv)) }, await encryptionKey(), unbase64(ciphertext)));
 }
