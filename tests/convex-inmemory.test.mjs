@@ -100,15 +100,6 @@ test.after(()=>{ for (const [k,n] of [["admin","ADMIN_PASSWORD"],["encryption","
 }});
 const authHeaders=(session)=>({"X-Pama-Internal-Key":internalKey,
   ...(session?{Authorization:"Bearer "+session}:{})});
-async function invoke(handler,ctx,body={},opts={}) {
-  const url="https://test-env.convex.site"+(opts.path??"/admin");
-  const request=new Request(url,{method:opts.method??"POST",headers:{
-    ...authHeaders(opts.session),
-    ...(opts.headers??{}),
-  },...(opts.method==="GET"?{}:{body:JSON.stringify(body)})});
-  return handler(ctx,request);
-}
-
 test("real admin HTTP + vault/store/session + Next server proxy: create/set/reveal/export/logout/revoke", async () => {
   const {tables,ctx}=makeDB();
   const priorFetch=globalThis.fetch;
