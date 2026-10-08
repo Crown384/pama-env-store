@@ -638,3 +638,58 @@ Its job is to answer one question safely and consistently:
 > For this Pama project, and for this environment, what configuration is the authorized tool allowed to use?
 
 The admin website manages the answer. Convex securely stores and serves it. Daytona, the Convex MCP server, and future Pama automation consume it.
+
+---
+
+## MVP implementation and operations
+
+The production-grade Env Store application is implemented on the secure admin route (/), the read-only machine API (/api/projects), and Convex backend actions. It uses Next.js 15, Tailwind v4, TypeScript, and Convex. No Clerk or user registration is necessary.
+
+### First-time setup
+
+1. Create a dedicated Convex project/deployment for Env Store. Never reuse a customer's production database or a Pama business app's database.
+2. In the **Convex deployment environment**, set:
+   - \`ADMIN_PASSWORD\`: your strong unique admin password (do not put this in Vercel or the GitHub repository).
+   - \`SECRET_ENCRYPTION_KEY\`: a cryptographically random **32-byte key encoded in Base64**. Generate locally with \`openssl rand -base64 32\`; store a secure backup. Losing this key makes stored ciphertext undecryptable. Do not rotate without a tested data migration.
+3. In the **Next.js/Vercel environment**, set \`NEXT_PUBLIC_CONVEX_URL\` to the deployment's public Convex URL. This is a URL, not a secret. The optional server-side \`CONVEX_URL\` overrides it for server requests.
+4. For automated Convex deployment from Vercel, configure \`CONVEX_DEPLOY_KEY\` as a **secret Vercel environment variable**, scoped to the correct deployment (preview keys must not deploy to production). The existing Vercel build command deploys Convex functions before completing the Next build.
+5. Deploy and open the application. Sign in with your Convex-configured \`ADMIN_PASSWORD\` and add projects.
+6. Create machine clients under **Machine access**, scoped to the projects and environments they need; copy their bearer tokens once into the machine integration's secret store.
+
+\`npm run typecheck\`, \`npm run lint\`, and \`npm run build\` validate the application. A new Convex deployment must be connected before a working end-to-end login can be tested.
+
+### Machine HTTP API
+
+Every request requires \`Authorization: Bearer pes_<issued-token>\`. Calls are read-only and scoped per client.
+
+| Endpoint | Purpose |
+| --- | --- |
+| \`GET /api/projects\` | Authorized projects |
+| \`GET /api/projects/:slug\` | Authorized project metadata |
+| \`GET /api/projects/:slug/env/staging\` | Shared + staging JSON |
+| \`GET /api/projects/:slug/env/production\` | Shared + production JSON, only if explicitly granted |
+| \`GET /api/projects/:slug/env/staging/:key\` | Single resolved authorized key |
+| \`GET /api/projects/:slug/env/staging?format=dotenv\` | Download dotenv-compatible text |
+
+Example (never put real tokens in scripts or committed files):
+
+~~~bash
+curl -fsS 'https://YOUR-ENV-STORE-DOMAIN/api/projects/pamastore/env/staging' \
+  -H "Authorization: Bearer $PAMA_ENV_STORE_TOKEN"
+~~~
+
+Machine clients should inject received variables in memory or ephemeral sandbox environment only. Never print secrets to build logs. The server sends \`Cache-Control: private, no-store\` on every API response.
+
+### Security notes
+
+- Stored variable values use AES-256-GCM with a fresh nonce per encryption and a key held only in Convex environment configuration.
+- Admin sessions expire after 6 hours, use an HttpOnly, Secure (production), SameSite=Strict cookie, and support logout. Failed login attempts are limited per request identity.
+- Tokens are issued once, hashed at rest, and scoped to Convex project IDs and allowed environments. Revoked tokens cannot retrieve configuration.
+- Admin operations are authenticated by a Convex session hash before accessing records. Convex database mutations/queries containing encrypted credentials are internal only.
+- Staging and production do **not** inherit from each other; environment-specific keys override Shared. Production machine access requires explicit selection.
+- Audit logs record actions and keys, never secret values.
+- This is a small internal secrets management tool, not a replacement for professional KMS-backed secret rotation or a security review. Restrict the dashboard at the network/hosting layer where possible and independently review before placing high-value production credentials into service.
+
+### Deployment practices
+
+Use separate Convex deployments and matching deploy keys for preview/staging versus production. Avoid deploying feature branches to the production Convex deployment. Never store the encryption key in \`NEXT_PUBLIC_*\` variables, committed \`.env\` files, screenshots, or logs.

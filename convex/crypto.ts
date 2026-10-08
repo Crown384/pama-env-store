@@ -44,5 +44,5 @@ export async function encrypt(plaintext: string): Promise<string> {
 export async function decrypt(value: string): Promise<string> {
   const [version, iv, ciphertext] = value.split(":");
   if (version !== "v1" || !iv || !ciphertext) throw new Error("Unsupported encrypted data");
-  return decoder.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: new Uint8Array(unbase64(iv)) }, await encryptionKey(), unbase64(ciphertext)));
+  return decoder.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: new Uint8Array(unbase64(iv)) }, await encryptionKey(), new Uint8Array(unbase64(ciphertext))));
 }

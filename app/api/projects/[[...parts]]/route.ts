@@ -31,7 +31,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ par
     const result = await convexServer().action(api.vault.machine, {
       token, slug: parts[0], environment: parts[2], key: parts[3],
     });
-    if (parts.length === 3 && request.nextUrl.searchParams.get("format") === "dotenv" && result && "values" in result) {
+    if (parts.length === 3 && request.nextUrl.searchParams.get("format") === "dotenv" && result !== null && typeof result === "object" && "values" in result) {
       return new NextResponse(asDotenv(result.values as Record<string, string>), {
         headers: { ...noStore, "Content-Type": "text/plain; charset=utf-8", "Content-Disposition": "attachment; filename=environment.env" },
       });
