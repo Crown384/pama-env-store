@@ -5,7 +5,7 @@ import { cookies, headers } from "next/headers";
 import type { NextRequest } from "next/server";
 
 export const SESSION_COOKIE = "pama_env_session";
-export const noStore = { "Cache-Control": "private, no-store, max-age=0", "Pragma": "no-cache", "X-Content-Type-Options": "nosniff" };
+export const noStore = { "Cache-Control": "private, no-store, max-age=0, must-revalidate", "Pragma": "no-cache", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" };
 
 export function convexServer() {
   const url = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL;

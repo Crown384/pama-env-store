@@ -102,26 +102,3 @@ export const admin = action({
     return ctx.runMutation(internal.store.write, { tokenHash, op: args.op, data });
   },
 });
-
-// The read-only machine gateway never trusts a supplied project name alone.
-// Authorizations are checked inside a Convex internal query before data is returned.
-export const machine = action({
-  args: { token: v.string(), slug: v.optional(v.string()), environment: v.optional(v.string()), key: v.optional(v.string()) },
-  handler: async (ctx, args): Promise<unknown> => {
-    const tokenHash = await sha256(args.token);
-    const environment = args.environment === undefined ? undefined : requireEnv(args.environment);
-    if (args.key !== undefined && (!environment || !validKey(args.key))) throw new Error("Invalid key request");
-    const result: { projects: Array<{ name: string; slug: string; environments: Env[] }>; project: { name: string; slug: string; environments: Env[] } | null; variables: Doc<"variables">[] } = await ctx.runQuery(internal.store.readMachine, { tokenHash, slug: args.slug, environment });
-    if (!args.slug) return { projects: result.projects };
-    if (!environment) return { project: result.project };
-    const resolved = new Map<string, string>();
-    for (const item of result.variables.filter(v => v.scope === "shared")) resolved.set(item.key, await decrypt(item.encryptedValue));
-    for (const item of result.variables.filter(v => v.scope === environment)) resolved.set(item.key, await decrypt(item.encryptedValue));
-    await ctx.runMutation(internal.store.logAccess, { tokenHash, action: "machine_client.environment_accessed", scope: environment, key: args.key });
-    if (args.key !== undefined) {
-      if (!resolved.has(args.key)) throw new Error("Key not found");
-      return { key: args.key, value: resolved.get(args.key) };
-    }
-    return { project: result.project, environment, values: Object.fromEntries([...resolved.entries()].sort(([a], [b]) => a.localeCompare(b))) };
-  },
-});
