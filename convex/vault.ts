@@ -39,7 +39,17 @@ export async function logoutCore(ctx: ActionCtx, args: { token: string }) {
 export async function adminCore(ctx: ActionCtx, args: { token: string; op: string; data?: unknown }): Promise<unknown> {
     const tokenHash = await sha256(args.token);
     const snapshot: { projects: Doc<"projects">[]; variables: Doc<"variables">[]; clients: Doc<"machineClients">[]; audits: Doc<"auditEvents">[]; expiresAt: number } = await ctx.runQuery(internal.store.readAdmin, { tokenHash });
-    const data = args.data ?? {};
+    const data = (args.data ?? {}) as {
+      projectId?: Id<"projects">;
+      key?: string;
+      scope?: Scope;
+      environment?: Env;
+      value?: string;
+      name?: string;
+      entries?: Array<{ key: string; value: string }>;
+      allowedProjectIds?: Id<"projects">[];
+      allowedEnvironments?: Env[];
+    };
     if (args.op === "snapshot") {
       return {
         projects: snapshot.projects,
