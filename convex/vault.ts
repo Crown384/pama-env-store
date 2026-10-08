@@ -1,6 +1,5 @@
-import { action } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { v } from "convex/values";
 import { sha256, equalsSecret, encrypt, decrypt, token } from "./crypto";
 import type { Id, Doc } from "./_generated/dataModel";
 
@@ -18,9 +17,7 @@ function requireScope(value: unknown): Scope {
   return value;
 }
 // Login never writes the plaintext password to Convex storage or logs.
-export const login = action({
-  args: { password: v.string(), identity: v.string() },
-  handler: async (ctx, { password, identity }) => {
+export async function loginCore(ctx: ActionCtx, { password, identity }: { password: string; identity: string }) {
     if (password.length > 4096) throw new Error("Authentication failed");
     const adminPassword = process.env.ADMIN_PASSWORD;
     if (!adminPassword) throw new Error("Admin password is not configured");
@@ -33,21 +30,26 @@ export const login = action({
     });
     if (!success || !sessionToken) throw new Error("Authentication failed");
     return { token: sessionToken, expiresIn: 6 * 60 * 60 };
-  },
-});
-
-export const logout = action({
-  args: { token: v.string() },
-  handler: async (ctx, args) => { await ctx.runMutation(internal.store.logout, { tokenHash: await sha256(args.token) }); return { ok: true }; },
-});
-
+}
+export async function logoutCore(ctx: ActionCtx, args: { token: string }) {
+  await ctx.runMutation(internal.store.logout, { tokenHash: await sha256(args.token) });
+  return { ok: true };
+}
 // This is the sole public admin gateway. Every operation authenticates before reading or writing.
-export const admin = action({
-  args: { token: v.string(), op: v.string(), data: v.optional(v.any()) },
-  handler: async (ctx, args): Promise<unknown> => {
+export async function adminCore(ctx: ActionCtx, args: { token: string; op: string; data?: unknown }): Promise<unknown> {
     const tokenHash = await sha256(args.token);
     const snapshot: { projects: Doc<"projects">[]; variables: Doc<"variables">[]; clients: Doc<"machineClients">[]; audits: Doc<"auditEvents">[]; expiresAt: number } = await ctx.runQuery(internal.store.readAdmin, { tokenHash });
-    const data = args.data ?? {};
+    const data = (args.data ?? {}) as {
+      projectId?: Id<"projects">;
+      key?: string;
+      scope?: Scope;
+      environment?: Env;
+      value?: string;
+      name?: string;
+      entries?: Array<{ key: string; value: string }>;
+      allowedProjectIds?: Id<"projects">[];
+      allowedEnvironments?: Env[];
+    };
     if (args.op === "snapshot") {
       return {
         projects: snapshot.projects,
@@ -100,28 +102,4 @@ export const admin = action({
       data.scope = requireScope(data.scope);
     }
     return ctx.runMutation(internal.store.write, { tokenHash, op: args.op, data });
-  },
-});
-
-// The read-only machine gateway never trusts a supplied project name alone.
-// Authorizations are checked inside a Convex internal query before data is returned.
-export const machine = action({
-  args: { token: v.string(), slug: v.optional(v.string()), environment: v.optional(v.string()), key: v.optional(v.string()) },
-  handler: async (ctx, args): Promise<unknown> => {
-    const tokenHash = await sha256(args.token);
-    const environment = args.environment === undefined ? undefined : requireEnv(args.environment);
-    if (args.key !== undefined && (!environment || !validKey(args.key))) throw new Error("Invalid key request");
-    const result: { projects: Array<{ name: string; slug: string; environments: Env[] }>; project: { name: string; slug: string; environments: Env[] } | null; variables: Doc<"variables">[] } = await ctx.runQuery(internal.store.readMachine, { tokenHash, slug: args.slug, environment });
-    if (!args.slug) return { projects: result.projects };
-    if (!environment) return { project: result.project };
-    const resolved = new Map<string, string>();
-    for (const item of result.variables.filter(v => v.scope === "shared")) resolved.set(item.key, await decrypt(item.encryptedValue));
-    for (const item of result.variables.filter(v => v.scope === environment)) resolved.set(item.key, await decrypt(item.encryptedValue));
-    await ctx.runMutation(internal.store.logAccess, { tokenHash, action: "machine_client.environment_accessed", scope: environment, key: args.key });
-    if (args.key !== undefined) {
-      if (!resolved.has(args.key)) throw new Error("Key not found");
-      return { key: args.key, value: resolved.get(args.key) };
-    }
-    return { project: result.project, environment, values: Object.fromEntries([...resolved.entries()].sort(([a], [b]) => a.localeCompare(b))) };
-  },
-});
+}

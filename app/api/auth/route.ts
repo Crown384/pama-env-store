@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { convexServer, noStore, requestIdentity, safeOrigin, SESSION_COOKIE, sessionToken } from "@/lib/server";
-import { api } from "@/convex/_generated/api";
+import { internalRequest, noStore, requestIdentity, safeOrigin, SESSION_COOKIE, sessionToken } from "@/lib/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +11,7 @@ export async function POST(request: NextRequest) {
   if (body.action === "logout") {
     const token = await sessionToken();
     if (token) {
-      try { await convexServer().action(api.vault.logout, { token }); } catch { /* expire cookie either way */ }
+      try { await internalRequest("/auth/logout", {}, token); } catch { /* expire cookie either way */ }
     }
     const response = NextResponse.json({ ok: true }, { headers: noStore });
     response.cookies.set(SESSION_COOKIE, "", { path: "/", maxAge: 0, httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production" });
@@ -22,7 +21,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400, headers: noStore });
   }
   try {
-    const result = await convexServer().action(api.vault.login, { password: body.password, identity: await requestIdentity(request) });
+    const result = await internalRequest("/auth/login", { password: body.password, identity: await requestIdentity(request) }) as { token: string; expiresIn: number };
     const response = NextResponse.json({ ok: true }, { headers: noStore });
     response.cookies.set(SESSION_COOKIE, result.token, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/", maxAge: result.expiresIn, priority: "high" });
     return response;

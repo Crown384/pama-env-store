@@ -167,7 +167,7 @@ export const readMachine = internalQuery({
     if (!project?.enabled || !client.allowedProjectIds.includes(project._id)) return denied();
     if (args.environment && !client.allowedEnvironments.includes(args.environment)) return denied();
     const variables = args.environment ? await ctx.db.query("variables").withIndex("by_project", q => q.eq("projectId", project._id)).collect() : [];
-    return { clientId: client._id, projects: [], project: { name: project.name, slug: project.slug, environments: client.allowedEnvironments }, variables };
+    return { clientId: client._id, projectId: project._id, projects: [], project: { name: project.name, slug: project.slug, environments: client.allowedEnvironments }, variables };
   },
 });
 
@@ -178,6 +178,14 @@ export const logAccess = internalMutation({
     if (args.tokenHash) {
       const client = await ctx.db.query("machineClients").withIndex("by_hash", q => q.eq("tokenHash", args.tokenHash!)).unique();
       if (!client?.enabled) return denied();
+      if (args.projectId) {
+        // This mutation is the last authorization gate before decrypted values
+        // leave the HTTP action. A deleted/disabled project must fail closed
+        // even if it was enabled when readMachine initially ran.
+        const project = await ctx.db.get(args.projectId);
+        if (!project?.enabled || !client.allowedProjectIds.includes(args.projectId)) return denied();
+      }
+      if (args.scope && (args.scope !== "staging" && args.scope !== "production" || !client.allowedEnvironments.includes(args.scope))) return denied();
       actor = "machine:" + client.name;
       await ctx.db.patch(client._id, { lastUsedAt: now() });
     } else if (args.adminTokenHash) {

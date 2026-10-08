@@ -693,3 +693,45 @@ Machine clients should inject received variables in memory or ephemeral sandbox 
 ### Deployment practices
 
 Use separate Convex deployments and matching deploy keys for preview/staging versus production. Avoid deploying feature branches to the production Convex deployment. Never store the encryption key in \`NEXT_PUBLIC_*\` variables, committed \`.env\` files, screenshots, or logs.
+
+
+---
+
+## Production machine API hardening (LDT-53)
+
+The machine API is implemented at `/api/projects/{slug}/env/{staging|production}`
+via a trusted Next.js facade and a Convex **HTTP action** at `/machine`.
+The bearer credential is supplied only as the HTTP `Authorization` header;
+it is **never passed to public Convex function arguments**. The backend hashes
+the machine token for database lookup, verifies the machine client's enabled
+flag and explicitly allowed project/environment, and records an audit event
+with project ID and environment before returning decrypted values. Values
+remain server-side until an authorized response is requested.
+
+Optional routes: `/api/projects`, `/api/projects/{slug}`,
+`/api/projects/{slug}/env/{environment}/{key}`.
+The existing `?format=dotenv` export on the resolved environment route is supported.
+Unknown query parameters, malformed slugs/keys, redirects, and unauthorized
+requests fail closed. Both the facade and HTTP action return `no-store`
+headers and suppress internal details from client-facing errors.
+
+Configuration: Set `NEXT_PUBLIC_CONVEX_URL` (or `CONVEX_URL`) on the
+Next.js service. For cloud deployments, the HTTPS action origin is derived as
+`*.convex.site`; self-hosted installations can set `CONVEX_SITE_URL`.
+Set `ADMIN_PASSWORD` and `SECRET_ENCRYPTION_KEY` **on Convex** only.
+Machine clients must be explicitly created/scoped in the dashboard; revoked
+clients cannot read or audit new accesses. The machine API is **not** a public
+anonymous API. Rotate tokens by creating a new scoped client, switching the
+consumer, and revoking the old client.
+
+Important: secrets available to a trusted MCP backend or sandbox can still be
+misused by untrusted code executed inside that environment. Use least-privilege
+tokens, network isolation for sensitive tasks, and authenticated MCP gateways.
+The admin/login/session operations are also carried over Convex HTTP actions,
+not public Convex function arguments. Set a randomly generated **32+ character**
+`ENV_STORE_INTERNAL_API_KEY` as a private environment variable on **both** the
+Next.js website and its corresponding Convex deployment. Never expose it as a
+`NEXT_PUBLIC_` variable. The Convex HTTP handlers reject unauthenticated
+requests to `/auth/login`, `/auth/logout`, and `/admin`. Separate machine token
+access does **not** use the internal key. Do not enable full production use
+without independent security QA and live end-to-end tests.
