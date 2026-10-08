@@ -108,10 +108,6 @@ async function invoke(handler,ctx,body={},opts={}) {
   },...(opts.method==="GET"?{}:{body:JSON.stringify(body)})});
   return handler(ctx,request);
 }
-async function api(handler,ctx,body={},opts={}) {
-  const r=await invoke(handler,ctx,body,opts);
-  return {status:r.status,data:await r.json(),headers:r.headers};
-}
 
 test("real admin HTTP + vault/store/session + Next server proxy: create/set/reveal/export/logout/revoke", async () => {
   const {tables,ctx}=makeDB();
