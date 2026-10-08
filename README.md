@@ -643,7 +643,7 @@ The admin website manages the answer. Convex securely stores and serves it. Dayt
 
 ## MVP implementation and operations
 
-The production-grade Env Store application is implemented on the secure admin route (/), the read-only machine API (/api/projects), and Convex backend actions. It uses Next.js 15, Tailwind v4, TypeScript, and Convex. No Clerk or user registration is necessary.
+The first usable Env Store implementation is available on the secure admin route (/), the read-only machine API (/api/projects), and Convex backend actions. It uses Next.js 15, Tailwind v4, TypeScript, and Convex. No Clerk or user registration is necessary.
 
 ### First-time setup
 
