@@ -31,7 +31,9 @@ export async function loginCore(ctx: ActionCtx, { password, identity }: { passwo
     if (!success || !sessionToken) throw new Error("Authentication failed");
     return { token: sessionToken, expiresIn: 6 * 60 * 60 };
 }
-export async function logoutCore(ctx: ActionCtx, args: { token: string }) { await ctx.runMutation(internal.store.logout, { tokenHash: await sha256(args.token) }); return { ok: true }; },
+export async function logoutCore(ctx: ActionCtx, args: { token: string }) {
+  await ctx.runMutation(internal.store.logout, { tokenHash: await sha256(args.token) });
+  return { ok: true };
 }
 // This is the sole public admin gateway. Every operation authenticates before reading or writing.
 export async function adminCore(ctx: ActionCtx, args: { token: string; op: string; data?: unknown }): Promise<unknown> {
