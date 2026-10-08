@@ -178,7 +178,13 @@ export const logAccess = internalMutation({
     if (args.tokenHash) {
       const client = await ctx.db.query("machineClients").withIndex("by_hash", q => q.eq("tokenHash", args.tokenHash!)).unique();
       if (!client?.enabled) return denied();
-      if (args.projectId && !client.allowedProjectIds.includes(args.projectId)) return denied();
+      if (args.projectId) {
+        // This mutation is the last authorization gate before decrypted values
+        // leave the HTTP action. A deleted/disabled project must fail closed
+        // even if it was enabled when readMachine initially ran.
+        const project = await ctx.db.get(args.projectId);
+        if (!project?.enabled || !client.allowedProjectIds.includes(args.projectId)) return denied();
+      }
       if (args.scope && (args.scope !== "staging" && args.scope !== "production" || !client.allowedEnvironments.includes(args.scope))) return denied();
       actor = "machine:" + client.name;
       await ctx.db.patch(client._id, { lastUsedAt: now() });
