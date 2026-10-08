@@ -98,8 +98,6 @@ process.env.CONVEX_URL="https://test-env.convex.cloud";
 test.after(()=>{ for (const [k,n] of [["admin","ADMIN_PASSWORD"],["encryption","SECRET_ENCRYPTION_KEY"],["key","ENV_STORE_INTERNAL_API_KEY"],["convex","CONVEX_URL"]]) {
   if(old[k]===undefined)delete process.env[n];else process.env[n]=old[k];
 }});
-const authHeaders=(session)=>({"X-Pama-Internal-Key":internalKey,
-  ...(session?{Authorization:"Bearer "+session}:{})});
 test("real admin HTTP + vault/store/session + Next server proxy: create/set/reveal/export/logout/revoke", async () => {
   const {tables,ctx}=makeDB();
   const priorFetch=globalThis.fetch;
