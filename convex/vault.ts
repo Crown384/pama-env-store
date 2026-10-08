@@ -1,6 +1,5 @@
-import { action } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { v } from "convex/values";
 import { sha256, equalsSecret, encrypt, decrypt, token } from "./crypto";
 import type { Id, Doc } from "./_generated/dataModel";
 
@@ -18,9 +17,7 @@ function requireScope(value: unknown): Scope {
   return value;
 }
 // Login never writes the plaintext password to Convex storage or logs.
-export const login = action({
-  args: { password: v.string(), identity: v.string() },
-  handler: async (ctx, { password, identity }) => {
+export async function loginCore(ctx: ActionCtx, { password, identity }: { password: string; identity: string }) {
     if (password.length > 4096) throw new Error("Authentication failed");
     const adminPassword = process.env.ADMIN_PASSWORD;
     if (!adminPassword) throw new Error("Admin password is not configured");
@@ -33,18 +30,11 @@ export const login = action({
     });
     if (!success || !sessionToken) throw new Error("Authentication failed");
     return { token: sessionToken, expiresIn: 6 * 60 * 60 };
-  },
-});
-
-export const logout = action({
-  args: { token: v.string() },
-  handler: async (ctx, args) => { await ctx.runMutation(internal.store.logout, { tokenHash: await sha256(args.token) }); return { ok: true }; },
-});
-
+}
+export async function logoutCore(ctx: ActionCtx, args: { token: string }) { await ctx.runMutation(internal.store.logout, { tokenHash: await sha256(args.token) }); return { ok: true }; },
+}
 // This is the sole public admin gateway. Every operation authenticates before reading or writing.
-export const admin = action({
-  args: { token: v.string(), op: v.string(), data: v.optional(v.any()) },
-  handler: async (ctx, args): Promise<unknown> => {
+export async function adminCore(ctx: ActionCtx, args: { token: string; op: string; data?: unknown }): Promise<unknown> {
     const tokenHash = await sha256(args.token);
     const snapshot: { projects: Doc<"projects">[]; variables: Doc<"variables">[]; clients: Doc<"machineClients">[]; audits: Doc<"auditEvents">[]; expiresAt: number } = await ctx.runQuery(internal.store.readAdmin, { tokenHash });
     const data = args.data ?? {};
@@ -100,5 +90,4 @@ export const admin = action({
       data.scope = requireScope(data.scope);
     }
     return ctx.runMutation(internal.store.write, { tokenHash, op: args.op, data });
-  },
-});
+}

@@ -55,3 +55,16 @@ test("both layers disable caching and never echo errors", () => {
   assert.match(next, /redirect: "error"/);
   assert.doesNotMatch(next, /console\.log/);
 });
+
+test("admin credentials avoid public Convex action argument logging", () => {
+  const vault = readFileSync(resolve("convex/vault.ts"), "utf8");
+  const http = readFileSync(resolve("convex/admin-http.ts"), "utf8");
+  const api = readFileSync(resolve("app/api/auth/route.ts"), "utf8");
+  const server = readFileSync(resolve("lib/server.ts"), "utf8");
+  assert.doesNotMatch(vault, /export const (login|logout|admin) = action/);
+  assert.match(http, /request\.headers\.get\("x-pama-internal-key"\)/);
+  assert.match(http, /ENV_STORE_INTERNAL_API_KEY/);
+  assert.match(server, /internalRequest\("\/admin"/);
+  assert.match(api, /internalRequest\("\/auth\/login"/);
+  assert.doesNotMatch(api, /convexServer\(\)\.action/);
+});

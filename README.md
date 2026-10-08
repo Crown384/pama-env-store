@@ -727,6 +727,11 @@ consumer, and revoking the old client.
 Important: secrets available to a trusted MCP backend or sandbox can still be
 misused by untrusted code executed inside that environment. Use least-privilege
 tokens, network isolation for sensitive tasks, and authenticated MCP gateways.
-Convex function argument logging for **admin** operations remains a separate
-security concern for further review; do not enable full production use without
-an independent security audit and real connected integration tests.
+The admin/login/session operations are also carried over Convex HTTP actions,
+not public Convex function arguments. Set a randomly generated **32+ character**
+`ENV_STORE_INTERNAL_API_KEY` as a private environment variable on **both** the
+Next.js website and its corresponding Convex deployment. Never expose it as a
+`NEXT_PUBLIC_` variable. The Convex HTTP handlers reject unauthenticated
+requests to `/auth/login`, `/auth/logout`, and `/admin`. Separate machine token
+access does **not** use the internal key. Do not enable full production use
+without independent security QA and live end-to-end tests.
