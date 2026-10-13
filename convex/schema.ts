@@ -15,7 +15,7 @@ export default defineSchema({
     name: v.string(), tokenHash: v.string(), enabled: v.boolean(),
     allowedProjectIds: v.array(v.id("projects")),
     allowedEnvironments: v.array(v.union(v.literal("staging"), v.literal("production"))),
-    createdAt: v.number(), lastUsedAt: v.optional(v.number()),
+    createdAt: v.number(), expiresAt: v.optional(v.number()), lastUsedAt: v.optional(v.number()),
   }).index("by_hash", ["tokenHash"]),
   auditEvents: defineTable({
     actor: v.string(), action: v.string(), projectId: v.optional(v.id("projects")),
