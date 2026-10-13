@@ -735,3 +735,12 @@ Next.js website and its corresponding Convex deployment. Never expose it as a
 requests to `/auth/login`, `/auth/logout`, and `/admin`. Separate machine token
 access does **not** use the internal key. Do not enable full production use
 without independent security QA and live end-to-end tests.
+
+
+## Machine credential expiry and rotation (LDT-66)
+
+New machine tokens are time limited: the admin dashboard offers **1, 7, 30, or 90 days** (30 days by default). They remain restricted to the selected projects and staging/production environments. Expiry is enforced both when machine credentials are first read and again at the transactional audit/authorization gate immediately before decrypted values are returned. Expired credentials fail closed with the same generic denial as revoked credentials.
+
+**Safe rotation:** create a replacement machine token for the same narrow scope, configure it in the trusted consumer's server-side secret store, verify access using disposable staging-only data, and then revoke the old token. Never transmit the token in MCP arguments, client-side code, logs, or Git history. Production access must be explicitly scoped and approved. Rotate early enough to avoid disrupting agents. The dashboard shows each token's expiry and last-used time.
+
+Legacy tokens issued before this change have no automatic expiry for compatibility; the dashboard marks them as **No expiry (legacy token — rotate)**. They must be individually replaced and revoked; deploying this release does not invalidate them. Automatic expiry does not prevent exfiltration by a process that legitimately receives a secret, and it does not remove previously injected secret values from a persistent sandbox. Use short-lived, least-privilege upstream credentials wherever possible. Follow OWASP Secrets Management guidance for rotation and revocation.
