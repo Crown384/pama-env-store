@@ -49,12 +49,13 @@ export async function adminCore(ctx: ActionCtx, args: { token: string; op: strin
       entries?: Array<{ key: string; value: string }>;
       allowedProjectIds?: Id<"projects">[];
       allowedEnvironments?: Env[];
+      expiresInDays?: number;
     };
     if (args.op === "snapshot") {
       return {
         projects: snapshot.projects,
         variables: snapshot.variables.map(({ _id, projectId, scope, key, createdAt, updatedAt }) => ({ _id, projectId, scope, key, createdAt, updatedAt })),
-        clients: snapshot.clients.map(({ _id, name, enabled, allowedProjectIds, allowedEnvironments, createdAt, lastUsedAt }) => ({ _id, name, enabled, allowedProjectIds, allowedEnvironments, createdAt, lastUsedAt })),
+        clients: snapshot.clients.map(({ _id, name, enabled, allowedProjectIds, allowedEnvironments, createdAt, expiresAt, lastUsedAt }) => ({ _id, name, enabled, allowedProjectIds, allowedEnvironments, createdAt, expiresAt, lastUsedAt })),
         audits: snapshot.audits, expiresAt: snapshot.expiresAt,
       };
     }
@@ -91,8 +92,10 @@ export async function adminCore(ctx: ActionCtx, args: { token: string; op: strin
       const allowedEnvironments = data.allowedEnvironments as Env[];
       if (!Array.isArray(allowedProjectIds) || !allowedProjectIds.length || !allowedProjectIds.every(id => snapshot.projects.some(p => p._id === id))) throw new Error("Invalid projects");
       if (!Array.isArray(allowedEnvironments) || !allowedEnvironments.length || !allowedEnvironments.every(e => e === "staging" || e === "production")) throw new Error("Invalid environments");
+      const expiresInDays = data.expiresInDays === undefined ? 30 : data.expiresInDays;
+      if (![1, 7, 30, 90].includes(expiresInDays)) throw new Error("Invalid credential lifetime");
       const issuedToken = "pes_" + token();
-      await ctx.runMutation(internal.store.write, { tokenHash, op: args.op, data: { name: data.name, allowedProjectIds, allowedEnvironments, newTokenHash: await sha256(issuedToken) } });
+      await ctx.runMutation(internal.store.write, { tokenHash, op: args.op, data: { name: data.name, allowedProjectIds, allowedEnvironments, expiresInDays, newTokenHash: await sha256(issuedToken) } });
       return { token: issuedToken };
     }
     const allowed = ["project.create", "project.update", "project.delete", "variable.delete", "client.revoke"];
