@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Limit parallel static-generation workers for small QA/staging builders.
+    cpus: 1,
+    webpackMemoryOptimizations: true,
+  },
   async headers() {
     return [{
       source: "/:path*",

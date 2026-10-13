@@ -137,6 +137,10 @@ test("real admin HTTP + vault/store/session + Next server proxy: create/set/reve
       name:"QA staging",allowedProjectIds:[projectId],allowedEnvironments:["staging"],
     });
     assert.match(machineClient.token,/^pes_/);
+    assert.ok(tables.machineClients[0].expiresAt > Date.now() + 29 * 86_400_000);
+    await assert.rejects(server.adminAction(session,"client.create",{
+      name:"Invalid lifetime",allowedProjectIds:[projectId],allowedEnvironments:["staging"],expiresInDays:365,
+    }),/Env Store request refused/);
     const machineReq=async(tok,path)=>{
       const request=new Request("https://test-env.convex.site/machine?"+path,{headers:{
         Authorization:"Bearer "+tok,
@@ -148,6 +152,9 @@ test("real admin HTTP + vault/store/session + Next server proxy: create/set/reve
     assert.equal(read.status,200);
     assert.equal(read.data.values.API_URL,"https://staging.example");
     assert.match(read.headers.get("Cache-Control"),/no-store/);
+    tables.machineClients[0].expiresAt=Date.now()-1;
+    assert.equal((await machineReq(machineClient.token,"slug=track&environment=staging")).status,404,"expired machine token must not read secrets");
+    tables.machineClients[0].expiresAt=Date.now()+30*86_400_000;
     assert.equal((await machineReq(machineClient.token,"slug=track&environment=production")).status,404);
     assert.equal((await machineReq(machineClient.token,"slug=other&environment=staging")).status,404);
     assert.equal((await machineReq("pes_invalid_credential","slug=track&environment=staging")).status,404);
@@ -165,7 +172,7 @@ test("real admin HTTP + vault/store/session + Next server proxy: create/set/reve
 });
 
 test("machine audit races deny after project disabled, deleted, or token revoked", async()=>{
-  for (const race of ["disabled","deleted","revoked"]) {
+  for (const race of ["disabled","deleted","revoked","expired"]) {
     const {tables,db,ctx}=makeDB();
     const projectId=await db.insert("projects",{name:"Track",slug:"track",enabled:true,createdAt:1,updatedAt:1});
     const clientId=await db.insert("machineClients",{name:"QA",tokenHash:"fakehash",enabled:true,
@@ -178,6 +185,7 @@ test("machine audit races deny after project disabled, deleted, or token revoked
     if(race==="disabled") await db.patch(projectId,{enabled:false});
     if(race==="deleted") await db.delete(projectId);
     if(race==="revoked") await db.patch(clientId,{enabled:false});
+    if(race==="expired") await db.patch(clientId,{expiresAt:Date.now()-1});
     await assert.rejects(logAccess.handler(ctx,{
       tokenHash:"fakehash",projectId,scope:"staging",action:"machine_client.environment_accessed",
     }),/Not authorized/,race);
