@@ -134,10 +134,11 @@ export const write = internalMutation({
     if (op === "client.create") {
       if (typeof data.name !== "string" || !data.name.trim() || data.name.length > 100) throw new Error("Invalid client name");
       if (!Array.isArray(data.allowedProjectIds) || !data.allowedProjectIds.length || !Array.isArray(data.allowedEnvironments) || !data.allowedEnvironments.length) throw new Error("Client scope required");
+      if (![1, 7, 30, 90].includes(data.expiresInDays)) throw new Error("Invalid credential lifetime");
       if (!data.allowedEnvironments.every((item: string) => item === "staging" || item === "production")) throw new Error("Invalid environment");
       const ids = [...new Set(data.allowedProjectIds)] as Id<"projects">[];
       for (const id of ids) if (!await ctx.db.get(id)) throw new Error("Invalid project permission");
-      await ctx.db.insert("machineClients", { name: data.name.trim(), tokenHash: data.newTokenHash, enabled: true, allowedProjectIds: ids, allowedEnvironments: [...new Set(data.allowedEnvironments)] as Array<"staging" | "production">, createdAt: at });
+      await ctx.db.insert("machineClients", { name: data.name.trim(), tokenHash: data.newTokenHash, enabled: true, allowedProjectIds: ids, allowedEnvironments: [...new Set(data.allowedEnvironments)] as Array<"staging" | "production">, createdAt: at, expiresAt: at + data.expiresInDays * 86_400_000 });
       await audit(op); return { ok: true };
     }
     if (op === "client.revoke") {
@@ -154,7 +155,7 @@ export const readMachine = internalQuery({
   args: { tokenHash: v.string(), slug: v.optional(v.string()), environment: v.optional(v.union(v.literal("staging"), v.literal("production"))) },
   handler: async (ctx, args) => {
     const client = await ctx.db.query("machineClients").withIndex("by_hash", q => q.eq("tokenHash", args.tokenHash)).unique();
-    if (!client || !client.enabled) return denied();
+    if (!client || !client.enabled || (client.expiresAt !== undefined && client.expiresAt <= now())) return denied();
     if (!args.slug) {
       const authorized = [];
       for (const id of client.allowedProjectIds) {
@@ -177,7 +178,7 @@ export const logAccess = internalMutation({
     let actor = "admin";
     if (args.tokenHash) {
       const client = await ctx.db.query("machineClients").withIndex("by_hash", q => q.eq("tokenHash", args.tokenHash!)).unique();
-      if (!client?.enabled) return denied();
+      if (!client?.enabled || (client.expiresAt !== undefined && client.expiresAt <= now())) return denied();
       if (args.projectId) {
         // This mutation is the last authorization gate before decrypted values
         // leave the HTTP action. A deleted/disabled project must fail closed
